@@ -117,11 +117,12 @@ class OpenSpielEnvironmentLoop(core.Worker):
 
   # TODO Remove? Currently used for debugging.
   def _print_policy(self, timestep: dm_env.TimeStep, player: int):
-    batched_observation = tf2_utils.add_batch_dim(timestep.observation[player])
-    policy = tf.squeeze(
-        self._actors[player]._learner._network(batched_observation))
-    tf.print(policy, summarize=-1)
-    tf.print("Greedy action: ", tf.math.argmax(policy))
+    pass
+  #  batched_observation = tf2_utils.add_batch_dim(timestep.observation[player])
+  #  policy = tf.squeeze(
+  #      self._actors[player]._learner._network(batched_observation))
+  #  tf.print(policy, summarize=-1)
+  #  tf.print("Greedy action: ", tf.math.argmax(policy))
 
   # TODO Remove verbose or add to logger?
   def run_episode(self, verbose: bool = False) -> loggers.LoggingData:

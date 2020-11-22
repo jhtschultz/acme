@@ -15,6 +15,8 @@
 
 """NFSP actor implementation."""
 
+import enum
+
 from acme import adders
 from acme import core
 from acme import types
@@ -37,23 +39,51 @@ class NFSPActor(core.Actor):
 
   def __init__(
       self,
-      sl_network: snt.Module,
       rl_network: snt.Module,
-      sl_adder: adders.Adder = None,
+      sl_network: snt.Module,
+      anticipatory_param: float,
       rl_adder: adders.Adder = None,
+      sl_adder: adders.Adder = None,
       variable_client: tf2_variable_utils.VariableClient = None,
   ):
 
-    # Store these for later use.
-    self._sl_adder = sl_adder
-    self._rl_adder = rl_adder
-    self._variable_client = variable_client
-    self._sl_network = sl_network
-    self._rl_network = rl_network
+    self._anticipatory_param = anticipatory_param
 
-    # TODO need to apply mask to sl network
-    self._sl_policy = tf.function(sl_network)
-    self._rl_policy = tf.function(rl_network)
+    # Store these for later use.
+    self._rl_adder = rl_adder
+    self._sl_adder = sl_adder
+    self._variable_client = variable_client
+    self._rl_network = rl_network
+    self._sl_network = sl_network
+
+    # TODO need to apply mask to sl network (maybe already done by this point?)
+
+  @tf.function
+  def _rl_policy(self, observation: types.NestedTensor) -> types.NestedTensor:
+    # Add a dummy batch dimension and as a side effect convert numpy to TF.
+    batched_observation = tf2_utils.add_batch_dim(observation)
+
+    # Compute the policy, conditioned on the observation.
+    policy = self._rl_network(batched_observation)
+
+    # Sample from the policy if it is stochastic.
+    action = policy.sample() if isinstance(policy, tfd.Distribution) else policy
+
+    return action
+
+  @tf.function
+  def _sl_policy(self, observation: types.NestedTensor) -> types.NestedTensor:
+    # Add a dummy batch dimension and as a side effect convert numpy to TF.
+    batched_observation = tf2_utils.add_batch_dim(observation)
+
+    # Compute the policy, conditioned on the observation.
+    policy = self._sl_network(batched_observation)
+
+    # Sample from the policy if it is stochastic.
+    action = policy.sample() if isinstance(policy, tfd.Distribution) else policy
+
+    return action
+
 
   # TODO should this be a tensorflow op?
   def _sample_episode_policy(self):
@@ -65,9 +95,9 @@ class NFSPActor(core.Actor):
   def select_action(self, observation: types.NestedArray) -> types.NestedArray:
     # Pass the observation through the appropriate policy network.
     if self._mode == MODE.best_response:
-      action = self._rl_policy(observervation)
+      action = self._rl_policy(observation)
     elif self._mode == MODE.average_policy:
-      action = self._sl_policy(observervation)
+      action = self._sl_policy(observation)
     else:
       raise ValueError("Invalid mode ({})".format(self._mode))
 
@@ -86,9 +116,9 @@ class NFSPActor(core.Actor):
   # TODO check this
   def observe(self, action: types.NestedArray, next_timestep: dm_env.TimeStep):
     if self._rl_adder:
-      self._rl_adder.add(action, timestep)
+      self._rl_adder.add(action, next_timestep)
     if self._mode == MODE.best_response and self._sl_adder:
-      self._sl_adder.add(action, timestep)
+      self._sl_adder.add(action, next_timestep)
 
   # TODO only used for distributed??
   def update(self, wait: bool = False):

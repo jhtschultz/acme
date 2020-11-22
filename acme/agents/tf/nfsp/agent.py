@@ -15,16 +15,22 @@
 
 """Neural Fictitious Self-Play (NFSP) agent implementation."""
 
+import copy
 from typing import Optional
 
 import acme
 from acme import datasets
 from acme import specs
 from acme import types
+from acme import wrappers
 from acme.adders import reverb as adders
+from acme.agents import agent
+from acme.agents.tf.bc import learning as bc_learning
+from acme.agents.tf.dqn import learning as dqn_learning
 from acme.agents.tf.nfsp import acting
-from acme.agents.tf.nfsp import learning
+from acme.agents.tf.nfsp import learning as nfsp_learning
 from acme.tf import utils as tf2_utils
+from acme.tf.networks import legal_actions
 from acme.utils import counting
 from acme.utils import loggers
 import dm_env
@@ -34,7 +40,7 @@ import sonnet as snt
 import tensorflow as tf
 
 
-class NFSP(acme.Actor):
+class NFSP(agent.Agent):
   """NFSP Agent."""
 
   def __init__(
@@ -44,13 +50,22 @@ class NFSP(acme.Actor):
       sl_network: snt.Module,
       replay_buffer_capacity: int,
       reservoir_buffer_capacity: int,
-      counter: counting.Counter = None,
-      logger: loggers.Logger = None,
       discount: float = 0.99,
       batch_size: int = 64,
       rl_learning_rate: float = 1e-3,
       sl_learning_rate: float = 1e-3,
       anticipatory_param: float = 0.1,
+      prefetch_size: int = 4,
+      target_update_period: int = 100,
+      samples_per_insert: float = 32.0,
+      min_replay_size: int = 1000,
+      importance_sampling_exponent: float = 0.2,
+      priority_exponent: float = 0.6,
+      n_step: int = 1,
+      epsilon: Optional[tf.Tensor] = None,
+      logger: loggers.Logger = None,
+      checkpoint: bool = True,
+      checkpoint_subpath: str = '~/acme/',
   ):
     # Create a replay server to add data to. This uses no limiter behavior in
     # order to allow the Agent interface to handle it.
@@ -59,17 +74,18 @@ class NFSP(acme.Actor):
         name=adders.DEFAULT_PRIORITY_TABLE,
         sampler=reverb.selectors.Prioritized(priority_exponent),
         remover=reverb.selectors.Fifo(),
-        max_size=rl_max_replay_size,
+        max_size=replay_buffer_capacity,
         rate_limiter=reverb.rate_limiters.MinSize(1),
         signature=adders.NStepTransitionAdder.signature(environment_spec))
     self._rl_server = reverb.Server([rl_replay_table], port=None)
+    print("RL_PORT: ", self._rl_server.port)
 
     # The adder is used to insert observations into replay.
     rl_address = f'localhost:{self._rl_server.port}'
     rl_adder = adders.NStepTransitionAdder(
         client=reverb.Client(rl_address),
         n_step=n_step,
-        discount=rl_discount)
+        discount=discount)
 
     # The dataset provides an interface to sample from replay.
     rl_replay_client = reverb.TFClient(rl_address)
@@ -81,23 +97,26 @@ class NFSP(acme.Actor):
 
     # TODO check this
     sl_replay_table = reverb.Table(
-        name='sl_table',
+        name=adders.DEFAULT_PRIORITY_TABLE,
         sampler=reverb.selectors.Uniform(),
         remover=reverb.selectors.Uniform(),
-        max_size=sl_max_replay_size,
-        rate_limiter=reverb.rate_limiters.MinSize(1))
-        #signature=adders.NStepTransitionAdder.signature(environment_spec)) # TODO
+        max_size=reservoir_buffer_capacity,
+        rate_limiter=reverb.rate_limiters.MinSize(1),
+        signature=adders.NStepTransitionAdder.signature(environment_spec)) # TODO
+        #signature=adders.ReverbAdder.signature(environment_spec))  # TODO
     self._sl_server = reverb.Server([sl_replay_table], port=None)
+    print("SL_PORT: ", self._sl_server.port)
 
     # The adder is used to insert observations into replay.
     sl_address = f'localhost:{self._sl_server.port}'
-    # TODO almost def doesn't make sense to use NStep here
+    # TODO should we be using NStep here?
     sl_adder = adders.NStepTransitionAdder(
         client=reverb.Client(sl_address),
-        n_step=n_step,
+        n_step=1,
         discount=discount)
 
     # The dataset provides an interface to sample from replay.
+    # TODO remove sl_replay_client
     sl_replay_client = reverb.TFClient(sl_address)
     sl_dataset = datasets.make_reverb_dataset(
         server_address=sl_address,
@@ -107,46 +126,64 @@ class NFSP(acme.Actor):
     # Use constant 0.05 epsilon greedy policy by default.
     if epsilon is None:
       epsilon = tf.Variable(0.05, trainable=False)
-    if policy_network is None:
-      policy_network = snt.Sequential([
-          network,
-          lambda q: trfl.epsilon_greedy(q, epsilon=epsilon).sample(),
-      ])
+    rl_policy_network = snt.Sequential(
+        [rl_network, legal_actions.EpsilonGreedy(epsilon=0.1, threshold=-1e8)])
+    sl_policy_network = snt.Sequential(
+        [sl_network, legal_actions.EpsilonGreedy(epsilon=0.0, threshold=-1e8)])
 
     tf2_utils.create_variables(rl_network, [environment_spec.observations])
     tf2_utils.create_variables(sl_network, [environment_spec.observations])
 
-    self._actor = acting.NFSPActor(rl_network,
-                                   sl_network,
-                                   sl_adder,
-                                   sl_adder)
+    actor = acting.NFSPActor(rl_policy_network,
+                             sl_policy_network,
+                             anticipatory_param,
+                             rl_adder,
+                             sl_adder)
 
 
 
     # Create a target network.
-    target_network = copy.deepcopy(network)
+    target_network = copy.deepcopy(rl_network)
 
     # TODO import
-    self._rl_learner = learning.DQNLearner(
+    rl_learner = dqn_learning.DQNLearner(
         network=rl_network,
         target_network=target_network,
-        discount=rl_discount,
-        importance_sampling_exponent=rl_importance_sampling_exponent,
+        discount=discount,
+        importance_sampling_exponent=importance_sampling_exponent,
         learning_rate=rl_learning_rate,
         target_update_period=target_update_period,
-        dataset=dataset,
-        replay_client=replay_client,
+        dataset=rl_dataset,
+        replay_client=rl_replay_client,
         logger=logger,
         checkpoint=checkpoint)
 
 
     # TODO import BCLearner
     # TODO counter?
-    self._sl_learner = learning.BCLearner(
+    sl_learner = bc_learning.BCLearner(
         network=sl_network,
         learning_rate=sl_learning_rate,
-        dataset=sl_dataset,
-        counter=learner_counter)
+        dataset=sl_dataset)
+        #counter=learner_counter) TODO counter created by default?
+
+    learner = nfsp_learning.NFSPLearner(rl_learner, sl_learner)
+
+    # TODO
+    #if checkpoint:
+    #  self._checkpointer = tf2_savers.Checkpointer(
+    #      directory=checkpoint_subpath,
+    #      objects_to_save=learner.state,
+    #      subdirectory='dqn_learner',
+    #      time_delta_minutes=60.)
+    #else:
+    #  self._checkpointer = None
+
+    super().__init__(
+        actor=actor,
+        learner=learner,
+        min_observations=max(batch_size, min_replay_size),
+        observations_per_step=float(batch_size) / samples_per_insert)
 
 
   def observe_first(self, timestep: dm_env.TimeStep):
@@ -160,10 +197,10 @@ class NFSP(acme.Actor):
     self._actor.observe(action, next_timestep)
 
   # TODO
-  def update(self, wait: bool = False):
-    # Run a number of learner steps (usually gradient steps).
-    while self._can_sample():
-      self._learner.step()
+  def update(self):
+    super().update()
+    #if self._checkpointer is not None:
+    #  self._checkpointer.save()
 
   def select_action(self, observation: np.ndarray) -> int:
     return self._actor.select_action(observation)

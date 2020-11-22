@@ -44,15 +44,16 @@ class NFSPLearner(acme.Learner, tf2_savers.TFSaveable):
       sl_learner: acme.Learner,
       counter: counting.Counter = None,
       logger: loggers.Logger = None,
+      checkpoint: bool = True,
   ):
 
     # Internalise, optimizer, and dataset.
-    self._network = network
-    self._variables = network.variables
+    # TODO combine here?
+    #self._variables = network.variables
 
-    # TODO ???
+    # TODO don't think we need an iterator here
     # TODO(b/155086959): Fix type stubs and remove.
-    self._iterator = iter(dataset)  # pytype: disable=wrong-arg-types
+    #self._iterator = iter(dataset)  # pytype: disable=wrong-arg-types
 
     # Set up logging/counting.
     self._counter = counter or counting.Counter()
@@ -61,7 +62,7 @@ class NFSPLearner(acme.Learner, tf2_savers.TFSaveable):
     # Create a snapshotter object.
     if checkpoint:
       self._snapshotter = tf2_savers.Snapshotter(
-          objects_to_save={'rl_network': rl_learner._network
+          objects_to_save={'rl_network': rl_learner._network,
                            'sl_network': sl_learner._network},
                                                  time_delta_minutes=60.)
     else:
@@ -91,9 +92,9 @@ class NFSPLearner(acme.Learner, tf2_savers.TFSaveable):
       self._snapshotter.save()
     self._logger.write(result)
 
-  # TODO get from both learners
+  # TODO get from both learners - DONE?
   def get_variables(self, names: List[str]) -> List[np.ndarray]:
-    return tf2_utils.to_numpy(self._variables)
+    return tf2_utils.to_numpy([self._rl_learner._variables, self._sl_learner._variables])
 
   # TODO get from both learners - DONE
   @property
