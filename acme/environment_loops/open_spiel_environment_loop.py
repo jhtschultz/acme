@@ -269,13 +269,13 @@ class OpenSpielEnvironmentLoop(core.Worker):
       if episode_count % 10000 == 0:
         expl = exploitability.exploitability(self._environment.game, self._joint_avg_policy)
         print("[{}] Exploitability AVG {}".format(episode_count, expl))
-        result = self.run_episode(verbose=True)
+        result = self.run_episode(verbose=False)
       else:
         result = self.run_episode(verbose=False)
       episode_count += 1
       step_count += result['episode_length']
       # Log the given results.
-      self._logger.write(result)
+      #self._logger.write(result)
 
 
 def _generate_zeros_from_spec(spec: specs.Array) -> np.ndarray:
