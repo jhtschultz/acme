@@ -126,7 +126,8 @@ class DQNLearner(acme.Learner, tf2_savers.TFSaveable):
 
       # The rewards and discounts have to have the same type as network values.
       r_t = tf.cast(r_t, q_tm1.dtype)
-      r_t = tf.clip_by_value(r_t, -1., 1.)
+      # TODO
+      #r_t = tf.clip_by_value(r_t, -1., 1.)
       d_t = tf.cast(d_t, q_tm1.dtype) * tf.cast(self._discount, q_tm1.dtype)
 
       # Compute the loss.

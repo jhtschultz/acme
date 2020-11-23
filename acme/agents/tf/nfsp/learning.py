@@ -47,13 +47,12 @@ class NFSPLearner(acme.Learner, tf2_savers.TFSaveable):
       checkpoint: bool = True,
   ):
 
+    self._rl_learner = rl_learner
+    self._sl_learner = sl_learner
+
     # Internalise, optimizer, and dataset.
     # TODO combine here?
     #self._variables = network.variables
-
-    # TODO don't think we need an iterator here
-    # TODO(b/155086959): Fix type stubs and remove.
-    #self._iterator = iter(dataset)  # pytype: disable=wrong-arg-types
 
     # Set up logging/counting.
     self._counter = counter or counting.Counter()
@@ -75,8 +74,8 @@ class NFSPLearner(acme.Learner, tf2_savers.TFSaveable):
 
   def step(self):
     # Do a batch of SGD.
-    result = {'rl_loss': self.rl_learner_.step()['loss'],
-              'sl_loss': self.sl_learner_.step()['loss']}
+    result = {'rl_loss': self._rl_learner._step()['loss'],
+              'sl_loss': self._sl_learner._step()['loss']}
 
     # Compute elapsed time.
     timestamp = time.time()

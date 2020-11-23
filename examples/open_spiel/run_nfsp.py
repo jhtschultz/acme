@@ -26,6 +26,7 @@ from acme.tf.networks import legal_actions
 from acme.wrappers import open_spiel_wrapper
 from open_spiel.python import rl_environment
 import sonnet as snt
+import tensorflow as tf
 
 flags.DEFINE_string("game", "leduc_poker", "Name of the game")
 flags.DEFINE_integer("num_players", 2, "Number of players")
@@ -33,11 +34,18 @@ flags.DEFINE_integer("num_players", 2, "Number of players")
 FLAGS = flags.FLAGS
 
 
-def _make_network(environment_spec):
+def _make_rl_network(environment_spec):
   return legal_actions.MaskedSequential([
       snt.Flatten(),
-      snt.nets.MLP([128, environment_spec.actions.num_values])
+      snt.nets.MLP([64, environment_spec.actions.num_values])
   ])
+
+# TODO this will eventually crash
+def _make_sl_network(environment_spec):
+  return snt.Sequential([legal_actions.MaskedSequential([
+      snt.Flatten(),
+      snt.nets.MLP([64, environment_spec.actions.num_values])]),
+      lambda logits: tf.nn.softmax(logits)])
 
 def main(_):
   # Create an environment and grab the spec.
@@ -59,8 +67,8 @@ def main(_):
             environment_spec=environment_spec,
             discount=1.0,
             n_step=1,  # Note: does indeed converge for n > 1
-            rl_network=_make_network(environment_spec),
-            sl_network=_make_network(environment_spec),
+            rl_network=_make_rl_network(environment_spec),
+            sl_network=_make_sl_network(environment_spec),
             replay_buffer_capacity=int(2e5),
             reservoir_buffer_capacity=int(2e6)))
 

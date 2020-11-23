@@ -31,6 +31,39 @@ import pyspiel
 import tensorflow as tf
 import tree
 
+from acme.wrappers.open_spiel_wrapper import OLT
+from open_spiel.python import policy
+from open_spiel.python import rl_environment
+from open_spiel.python.algorithms import exploitability
+
+
+class NFSPPolicies(policy.Policy):
+  """Joint policy to be evaluated."""
+
+  def __init__(self, env, nfsp_actors):
+    game = env.game
+    player_ids = 2
+    super(NFSPPolicies, self).__init__(game, player_ids)
+    self._policies = nfsp_actors
+
+  def action_probabilities(self, state, player_id=None):
+    cur_player = state.current_player()
+    legal_actions = state.legal_actions(cur_player)
+
+
+    legals = np.zeros(self.game.num_distinct_actions(), dtype=np.float32)
+    legals[legal_actions] = 1
+    player_observation = OLT(observation=np.asarray(state.information_state_tensor(cur_player), dtype=np.float32),
+                             legal_actions=legals,
+                             terminal=np.asarray([float(state.is_terminal())], dtype=np.float32))
+
+
+    p = self._policies[cur_player]._actor._get_avg_policy(player_observation).numpy()
+    p = np.squeeze(p)
+    prob_dict = {action: p[action] for action in legal_actions}
+    return prob_dict
+
+
 
 class OpenSpielEnvironmentLoop(core.Worker):
   """An OpenSpiel RL environment loop.
@@ -71,6 +104,8 @@ class OpenSpielEnvironmentLoop(core.Worker):
     # Track information necessary to coordinate updates among multiple actors.
     self._observed_first = [False] * len(self._actors)
     self._prev_actions = [None] * len(self._actors)
+
+    self._joint_avg_policy = NFSPPolicies(environment, actors)
 
   def _send_observation(self, timestep: dm_env.TimeStep, player: int):
     # If terminal all actors must update
@@ -231,7 +266,9 @@ class OpenSpielEnvironmentLoop(core.Worker):
 
     episode_count, step_count = 0, 0
     while not should_terminate(episode_count, step_count):
-      if episode_count % 1000 == 0:
+      if episode_count % 10000 == 0:
+        expl = exploitability.exploitability(self._environment.game, self._joint_avg_policy)
+        print("[{}] Exploitability AVG {}".format(episode_count, expl))
         result = self.run_episode(verbose=True)
       else:
         result = self.run_episode(verbose=False)

@@ -42,6 +42,7 @@ class NFSPActor(core.Actor):
       rl_network: snt.Module,
       sl_network: snt.Module,
       anticipatory_param: float,
+      reservoir_buffer_capacity: int,
       rl_adder: adders.Adder = None,
       sl_adder: adders.Adder = None,
       variable_client: tf2_variable_utils.VariableClient = None,
@@ -49,14 +50,18 @@ class NFSPActor(core.Actor):
 
     self._anticipatory_param = anticipatory_param
 
-    # Store these for later use.
     self._rl_adder = rl_adder
     self._sl_adder = sl_adder
     self._variable_client = variable_client
+    # TODO do we need this?
+    self._reservoir_buffer_capacity = reservoir_buffer_capacity
     self._rl_network = rl_network
     self._sl_network = sl_network
 
-    # TODO need to apply mask to sl network (maybe already done by this point?)
+    # TODO need to use a counter so we can save/restore
+    # TODO maybe don't even need this
+    self._step_counter = 0
+
 
   @tf.function
   def _rl_policy(self, observation: types.NestedTensor) -> types.NestedTensor:
@@ -78,11 +83,22 @@ class NFSPActor(core.Actor):
 
     # Compute the policy, conditioned on the observation.
     policy = self._sl_network(batched_observation)
+    policy = tfd.Categorical(probs=policy)
 
     # Sample from the policy if it is stochastic.
     action = policy.sample() if isinstance(policy, tfd.Distribution) else policy
 
     return action
+
+  @tf.function
+  def _get_avg_policy(self, observation: types.NestedTensor) -> types.NestedTensor:
+    # Add a dummy batch dimension and as a side effect convert numpy to TF.
+    batched_observation = tf2_utils.add_batch_dim(observation)
+
+    # Compute the policy, conditioned on the observation.
+    policy = self._sl_network(batched_observation)
+
+    return policy
 
 
   # TODO should this be a tensorflow op?
