@@ -56,11 +56,11 @@ class NFSP(agent.Agent):
       sl_learning_rate: float = 0.01,
       anticipatory_param: float = 0.1,
       prefetch_size: int = 4,
-      target_update_period: int = 100,
+      target_update_period: int = 300,
       samples_per_insert: float = 32.0,
       min_replay_size: int = 1000,
       importance_sampling_exponent: float = 0.2,
-      priority_exponent: float = 0.6,
+      priority_exponent: float = 0.0,
       n_step: int = 1,
       epsilon: Optional[tf.Tensor] = None,
       logger: loggers.Logger = None,
@@ -188,11 +188,10 @@ class NFSP(agent.Agent):
 
 
 
-  # TODO
+  # TODO checkpoint
+  # TODO might want to override this
   def update(self):
     super().update()
     #if self._checkpointer is not None:
     #  self._checkpointer.save()
 
-  def select_action(self, observation: np.ndarray) -> int:
-    return self._actor.select_action(observation)

@@ -131,17 +131,19 @@ class DQNLearner(acme.Learner, tf2_savers.TFSaveable):
       d_t = tf.cast(d_t, q_tm1.dtype) * tf.cast(self._discount, q_tm1.dtype)
 
       # Compute the loss.
-      _, extra = trfl.double_qlearning(q_tm1, a_tm1, r_t, d_t, q_t_value,
-                                       q_t_selector)
+      loss, extra = trfl.double_qlearning(q_tm1, a_tm1, r_t, d_t, q_t_value,
+                                          q_t_selector)
+      # TODO
       loss = losses.huber(extra.td_error, self._huber_loss_parameter)
 
+      # TODO
       # Get the importance weights.
-      importance_weights = 1. / probs  # [B]
-      importance_weights **= self._importance_sampling_exponent
-      importance_weights /= tf.reduce_max(importance_weights)
+      #importance_weights = 1. / probs  # [B]
+      #importance_weights **= self._importance_sampling_exponent
+      #importance_weights /= tf.reduce_max(importance_weights)
 
       # Reweight.
-      loss *= tf.cast(importance_weights, loss.dtype)  # [B]
+      #loss *= tf.cast(importance_weights, loss.dtype)  # [B]
       loss = tf.reduce_mean(loss, axis=[0])  # []
 
     # Do a step of SGD.

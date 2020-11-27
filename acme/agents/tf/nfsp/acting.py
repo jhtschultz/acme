@@ -130,6 +130,7 @@ class NFSPActor(core.Actor):
       self._sl_adder.add_first(timestep)
 
   # TODO check this
+  # TODO !! Reservoir sampling! Only add randint() < buffersize
   def observe(self, action: types.NestedArray, next_timestep: dm_env.TimeStep):
     if self._rl_adder:
       self._rl_adder.add(action, next_timestep)
