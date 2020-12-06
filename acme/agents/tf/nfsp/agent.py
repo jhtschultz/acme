@@ -59,7 +59,8 @@ class NFSP(agent.Agent):
       target_update_period: int = 300,
       samples_per_insert: float = 32.0,
       min_replay_size: int = 1000,
-      importance_sampling_exponent: float = 0.2,
+      observations_per_step: int = 128,
+      importance_sampling_exponent: float = 0.2,  # TODO currently have this commented out in DQN learner
       priority_exponent: float = 0.0,
       n_step: int = 1,
       epsilon: Optional[tf.Tensor] = None,
@@ -89,6 +90,10 @@ class NFSP(agent.Agent):
 
     # The dataset provides an interface to sample from replay.
     rl_replay_client = reverb.TFClient(rl_address)
+
+    # TODO we're hacking this for now
+    self._rl_buffer_client = reverb.Client(rl_address)
+
     rl_dataset = datasets.make_reverb_dataset(
         server_address=rl_address,
         batch_size=batch_size,
@@ -116,8 +121,10 @@ class NFSP(agent.Agent):
         discount=discount)
 
     # The dataset provides an interface to sample from replay.
-    # TODO remove sl_replay_client
+    # TODO remove sl_replay_client - only needed for DQN to update priorities
     sl_replay_client = reverb.TFClient(sl_address)
+    # TODO we're hacking this for now
+    self._sl_buffer_client = reverb.Client(sl_address)
     sl_dataset = datasets.make_reverb_dataset(
         server_address=sl_address,
         batch_size=batch_size,
@@ -160,7 +167,6 @@ class NFSP(agent.Agent):
         checkpoint=checkpoint)
 
 
-    # TODO import BCLearner
     # TODO counter?
     sl_learner = bc_learning.BCLearner(
         network=sl_network,
@@ -170,7 +176,7 @@ class NFSP(agent.Agent):
 
     learner = nfsp_learning.NFSPLearner(rl_learner, sl_learner)
 
-    # TODO
+    # TODO add back checkpoint
     #if checkpoint:
     #  self._checkpointer = tf2_savers.Checkpointer(
     #      directory=checkpoint_subpath,
@@ -184,7 +190,7 @@ class NFSP(agent.Agent):
         actor=actor,
         learner=learner,
         min_observations=max(batch_size, min_replay_size),
-        observations_per_step=float(batch_size) / samples_per_insert)
+        observations_per_step=observations_per_step)
 
 
 

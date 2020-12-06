@@ -89,6 +89,10 @@ class EpsilonGreedy(snt.Module):
     self._epsilon = tf.Variable(epsilon, trainable=False)
     self._threshold = threshold
 
+  # TF op?
+  def update_epsilon(self, new_epsilon: float):
+    self._epsilon.assign(new_epsilon)
+
   def __call__(self, action_values: tf.Tensor) -> tfd.Categorical:
     legal_actions_mask = tf.where(
         tf.math.less_equal(action_values, self._threshold),

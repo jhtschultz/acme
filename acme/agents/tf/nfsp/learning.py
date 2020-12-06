@@ -89,7 +89,7 @@ class NFSPLearner(acme.Learner, tf2_savers.TFSaveable):
     # Snapshot and attempt to write logs.
     if self._snapshotter is not None:
       self._snapshotter.save()
-    #self._logger.write(result)
+    self._logger.write(result)
 
   # TODO get from both learners - DONE?
   def get_variables(self, names: List[str]) -> List[np.ndarray]:

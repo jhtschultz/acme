@@ -269,6 +269,12 @@ class OpenSpielEnvironmentLoop(core.Worker):
       if episode_count % 10000 == 0:
         expl = exploitability.exploitability(self._environment.game, self._joint_avg_policy)
         print("[{}] Exploitability AVG {}".format(episode_count, expl))
+        print("RL REPLAY CLIENT INFO:")
+        for agent in self._actors:
+            print(agent._rl_buffer_client.server_info())
+        print("SL REPLAY CLIENT INFO:")
+        for agent in self._actors:
+            print(agent._sl_buffer_client.server_info())
         result = self.run_episode(verbose=False)
       else:
         result = self.run_episode(verbose=False)

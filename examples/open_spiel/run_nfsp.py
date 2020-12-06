@@ -66,7 +66,7 @@ def main(_):
         nfsp.NFSP(
             environment_spec=environment_spec,
             discount=1.0,
-            n_step=1,  # Note: does indeed converge for n > 1
+            n_step=1,
             rl_network=_make_rl_network(environment_spec),
             sl_network=_make_sl_network(environment_spec),
             replay_buffer_capacity=int(2e5),

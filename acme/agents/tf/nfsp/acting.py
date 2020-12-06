@@ -59,7 +59,8 @@ class NFSPActor(core.Actor):
     self._sl_network = sl_network
 
     # TODO need to use a counter so we can save/restore
-    # TODO maybe don't even need this
+    # TODO like a real counter (see DQN learner)
+    # We only increment counter when there's an observation
     self._step_counter = 0
 
 
@@ -122,7 +123,14 @@ class NFSPActor(core.Actor):
 
   # TODO check this
   # TODO Reservoir sampling for sl_adder
+  # TODO handle update epsilon properly
   def observe_first(self, timestep: dm_env.TimeStep):
+    self._step_counter += 1
+    self._rl_network._layers[-1].update_epsilon(0.001 + (0.06 - 0.001) *
+        (1 - self._step_counter / 10000000)**1.0)
+    #self._rl_network.update_epsilon(
+    #    self._epsilon_end + (self._epsilon_start - self._epsilon_end) *
+    #    (1 - decay_steps / self._epsilon_decay_duration)**power)
     self._sample_episode_policy()
     if self._rl_adder:
       self._rl_adder.add_first(timestep)
@@ -132,6 +140,7 @@ class NFSPActor(core.Actor):
   # TODO check this
   # TODO !! Reservoir sampling! Only add randint() < buffersize
   def observe(self, action: types.NestedArray, next_timestep: dm_env.TimeStep):
+    self._step_counter += 1
     if self._rl_adder:
       self._rl_adder.add(action, next_timestep)
     if self._mode == MODE.best_response and self._sl_adder:
