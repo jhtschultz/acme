@@ -134,7 +134,7 @@ class DQNLearner(acme.Learner, tf2_savers.TFSaveable):
       loss, extra = trfl.double_qlearning(q_tm1, a_tm1, r_t, d_t, q_t_value,
                                           q_t_selector)
       # TODO
-      loss = losses.huber(extra.td_error, self._huber_loss_parameter)
+      #loss = losses.huber(extra.td_error, self._huber_loss_parameter)
 
       # TODO
       # Get the importance weights.

@@ -85,6 +85,7 @@ class BCLearner(acme.Learner, tf2_savers.TFSaveable):
     with tf.GradientTape() as tape:
       # Evaluate our networks.
       logits = self._network(o_tm1)
+      # TODO from logits?
       cce = tf.keras.losses.SparseCategoricalCrossentropy(from_logits=True)
       loss = cce(a_tm1, logits)
 

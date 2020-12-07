@@ -35,7 +35,19 @@ from acme.wrappers.open_spiel_wrapper import OLT
 from open_spiel.python import policy
 from open_spiel.python import rl_environment
 from open_spiel.python.algorithms import exploitability
+from open_spiel.python.algorithms import expected_game_score
 
+
+class RandomActor(core.Actor):
+  def select_action(self, observation):
+    legals = np.squeeze(np.nonzero(observation.legal_actions))
+    return np.random.choice(legals)
+
+  def observe_first(self, timestep):
+    pass
+
+  def observe(self, timestep):
+    pass
 
 class NFSPPolicies(policy.Policy):
   """Joint policy to be evaluated."""
@@ -56,10 +68,13 @@ class NFSPPolicies(policy.Policy):
     player_observation = OLT(observation=np.asarray(state.information_state_tensor(cur_player), dtype=np.float32),
                              legal_actions=legals,
                              terminal=np.asarray([float(state.is_terminal())], dtype=np.float32))
+    # TODO hack
+    if cur_player == 1:
+      p = legals / len(legal_actions)
 
-
-    p = self._policies[cur_player]._actor._get_avg_policy(player_observation).numpy()
-    p = np.squeeze(p)
+    else:
+      p = self._policies[cur_player]._actor._get_avg_policy(player_observation).numpy()
+      p = np.squeeze(p)
     prob_dict = {action: p[action] for action in legal_actions}
     return prob_dict
 
@@ -267,14 +282,18 @@ class OpenSpielEnvironmentLoop(core.Worker):
     episode_count, step_count = 0, 0
     while not should_terminate(episode_count, step_count):
       if episode_count % 10000 == 0:
-        expl = exploitability.exploitability(self._environment.game, self._joint_avg_policy)
-        print("[{}] Exploitability AVG {}".format(episode_count, expl))
-        print("RL REPLAY CLIENT INFO:")
-        for agent in self._actors:
-            print(agent._rl_buffer_client.server_info())
-        print("SL REPLAY CLIENT INFO:")
-        for agent in self._actors:
-            print(agent._sl_buffer_client.server_info())
+        print("EPISODE COUNT: ", episode_count)
+        policy_value = expected_game_score.policy_value(self._environment.game.new_initial_state(), [self._joint_avg_policy, policy.UniformRandomPolicy(self._environment.game)])
+        print(policy.UniformRandomPolicy(self._environment.game))
+        #expl = exploitability.exploitability(self._environment.game, self._joint_avg_policy)
+        #print("[{}] Exploitability AVG {}".format(episode_count, expl))
+        print("[{}] Value against Random {}".format(episode_count, policy_value))
+        #print("RL REPLAY CLIENT INFO:")
+        #for agent in self._actors:
+        #    print(agent._rl_buffer_client.server_info())
+        #print("SL REPLAY CLIENT INFO:")
+        #for agent in self._actors:
+        #    print(agent._sl_buffer_client.server_info())
         result = self.run_episode(verbose=False)
       else:
         result = self.run_episode(verbose=False)

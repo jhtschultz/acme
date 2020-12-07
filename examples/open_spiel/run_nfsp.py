@@ -19,12 +19,14 @@ from absl import app
 from absl import flags
 
 import acme
+from acme import core
 from acme import wrappers
 from acme.agents.tf import nfsp
 from acme.environment_loops import open_spiel_environment_loop
 from acme.tf.networks import legal_actions
 from acme.wrappers import open_spiel_wrapper
 from open_spiel.python import rl_environment
+import numpy as np  # TODO where to place this?
 import sonnet as snt
 import tensorflow as tf
 
@@ -33,6 +35,21 @@ flags.DEFINE_integer("num_players", 2, "Number of players")
 
 FLAGS = flags.FLAGS
 
+
+class RandomActor(core.Actor):
+  def select_action(self, observation):
+    legals = np.squeeze(np.nonzero(observation.legal_actions))
+    return np.random.choice(legals)
+
+  def observe_first(self, timestep):
+    pass
+
+  def observe(self, action, next_timestep):
+    pass
+
+  def update(self, wait = False):
+    pass
+    
 
 def _make_rl_network(environment_spec):
   return legal_actions.MaskedSequential([
@@ -45,7 +62,8 @@ def _make_sl_network(environment_spec):
   return snt.Sequential([legal_actions.MaskedSequential([
       snt.Flatten(),
       snt.nets.MLP([64, environment_spec.actions.num_values])]),
-      lambda logits: tf.nn.softmax(logits)])
+      ])
+      #lambda logits: tf.nn.softmax(logits)])
 
 def main(_):
   # Create an environment and grab the spec.
@@ -71,6 +89,7 @@ def main(_):
             sl_network=_make_sl_network(environment_spec),
             replay_buffer_capacity=int(2e5),
             reservoir_buffer_capacity=int(2e6)))
+  agents[1] = RandomActor()
 
   # Run the environment loop.
   loop = open_spiel_environment_loop.OpenSpielEnvironmentLoop(
