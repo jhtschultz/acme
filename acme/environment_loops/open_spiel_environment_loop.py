@@ -45,7 +45,7 @@ class NFSPPolicies(policy.Policy):
     game = env.game
     player_ids = 2
     super(NFSPPolicies, self).__init__(game, player_ids)
-    self._policies = nfsp_actors
+    self._actors = nfsp_actors
 
   def action_probabilities(self, state, player_id=None):
     cur_player = state.current_player()
@@ -61,8 +61,13 @@ class NFSPPolicies(policy.Policy):
       p = legals / len(legal_actions)
 
     else:
-      p = self._policies[cur_player]._actor._get_avg_policy(player_observation).numpy()
-      p = np.squeeze(p)
+      batched_observation = tf2_utils.add_batch_dim(player_observation)
+      action_values = np.squeeze(self._actors[cur_player]._learner._rl_learner._network(batched_observation))
+      p = np.zeros(self.game.num_distinct_actions(), dtype=np.float32)
+      p[np.argmax(action_values)] = 1
+
+      #p = self._actors[cur_player]._actor._get_avg_policy(player_observation).numpy()
+      #p = np.squeeze(p)
     prob_dict = {action: p[action] for action in legal_actions}
     return prob_dict
 
