@@ -38,17 +38,6 @@ from open_spiel.python.algorithms import exploitability
 from open_spiel.python.algorithms import expected_game_score
 
 
-class RandomActor(core.Actor):
-  def select_action(self, observation):
-    legals = np.squeeze(np.nonzero(observation.legal_actions))
-    return np.random.choice(legals)
-
-  def observe_first(self, timestep):
-    pass
-
-  def observe(self, timestep):
-    pass
-
 class NFSPPolicies(policy.Policy):
   """Joint policy to be evaluated."""
 
@@ -61,7 +50,6 @@ class NFSPPolicies(policy.Policy):
   def action_probabilities(self, state, player_id=None):
     cur_player = state.current_player()
     legal_actions = state.legal_actions(cur_player)
-
 
     legals = np.zeros(self.game.num_distinct_actions(), dtype=np.float32)
     legals[legal_actions] = 1
@@ -283,8 +271,11 @@ class OpenSpielEnvironmentLoop(core.Worker):
     while not should_terminate(episode_count, step_count):
       if episode_count % 10000 == 0:
         print("EPISODE COUNT: ", episode_count)
-        policy_value = expected_game_score.policy_value(self._environment.game.new_initial_state(), [self._joint_avg_policy, policy.UniformRandomPolicy(self._environment.game)])
-        print(policy.UniformRandomPolicy(self._environment.game))
+
+        policies = NFSPPolicies(self._environment, self._actors)
+
+        policy_value = expected_game_score.policy_value(self._environment.game.new_initial_state(), [policies] * 2)
+        #print(policy.UniformRandomPolicy(self._environment.game))
         #expl = exploitability.exploitability(self._environment.game, self._joint_avg_policy)
         #print("[{}] Exploitability AVG {}".format(episode_count, expl))
         print("[{}] Value against Random {}".format(episode_count, policy_value))
