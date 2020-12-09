@@ -30,7 +30,7 @@ import numpy as np  # TODO where to place this?
 import sonnet as snt
 import tensorflow as tf
 
-flags.DEFINE_string("game", "leduc_poker", "Name of the game")
+flags.DEFINE_string("game", "kuhn_poker", "Name of the game")
 flags.DEFINE_integer("num_players", 2, "Number of players")
 
 FLAGS = flags.FLAGS
