@@ -57,7 +57,8 @@ class NFSPPolicies(policy.Policy):
     player_observation = OLT(observation=np.asarray(state.information_state_tensor(cur_player), dtype=np.float32),
                              legal_actions=legals,
                              terminal=np.asarray([float(state.is_terminal())], dtype=np.float32))
-    if cur_player == 0:
+    #if cur_player == 0:
+    if True:
       if self._mode == "AVG":
         p = self._actors[cur_player]._actor._get_avg_policy(player_observation).numpy()
         p = np.squeeze(p)
@@ -285,27 +286,28 @@ class OpenSpielEnvironmentLoop(core.Worker):
 
     episode_count, step_count = 0, 0
     while not should_terminate(episode_count, step_count):
-      if episode_count % 1000 == 0:
+      if episode_count % 10000 == 0:
         print("EPISODE COUNT: ", episode_count)
 
-        policies = NFSPPolicies(self._environment, self._actors, "BR")
-        policy_value = expected_game_score.policy_value(self._environment.game.new_initial_state(), [policies] * 2)
-        print("[{}] BR Value against Random {}".format(episode_count, policy_value))
-
-        policies = NFSPPolicies(self._environment, self._actors, "AVG")
-        policy_value = expected_game_score.policy_value(self._environment.game.new_initial_state(), [policies] * 2)
-        print("[{}] AVG Value against Random {}".format(episode_count, policy_value))
+#        policies = NFSPPolicies(self._environment, self._actors, "BR")
+#        policy_value = expected_game_score.policy_value(self._environment.game.new_initial_state(), [policies] * 2)
+#        print("[{}] BR Value against Random {}".format(episode_count, policy_value))
+#
+#        policies = NFSPPolicies(self._environment, self._actors, "AVG")
+#        policy_value = expected_game_score.policy_value(self._environment.game.new_initial_state(), [policies] * 2)
+#        print("[{}] AVG Value against Random {}".format(episode_count, policy_value))
 
 
         #print(policy.UniformRandomPolicy(self._environment.game))
-        #expl = exploitability.exploitability(self._environment.game, self._joint_avg_policy)
-        #print("[{}] Exploitability AVG {}".format(episode_count, expl))
-        #print("RL REPLAY CLIENT INFO:")
-        #for agent in self._actors:
-        #    print(agent._rl_buffer_client.server_info())
-        #print("SL REPLAY CLIENT INFO:")
-        #for agent in self._actors:
-        #    print(agent._sl_buffer_client.server_info())
+        policies = NFSPPolicies(self._environment, self._actors, "AVG")
+        expl = exploitability.exploitability(self._environment.game, policies)
+        print("[{}] Exploitability AVG {}".format(episode_count, expl))
+        print("RL REPLAY CLIENT INFO:")
+        for agent in self._actors:
+            print(agent._rl_buffer_client.server_info())
+        print("SL REPLAY CLIENT INFO:")
+        for agent in self._actors:
+            print(agent._sl_buffer_client.server_info())
         result = self.run_episode(verbose=False)
       else:
         result = self.run_episode(verbose=False)

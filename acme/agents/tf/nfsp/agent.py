@@ -190,9 +190,9 @@ class NFSP(agent.Agent):
         actor=actor,
         learner=learner,
         min_observations=max(batch_size, min_replay_size),
-        observations_per_step=float(batch_size) / samples_per_insert)
+        observations_per_step=observations_per_step)
         # TODO
-        #observations_per_step=observations_per_step)
+        #observations_per_step=float(batch_size) / samples_per_insert)
 
 
 

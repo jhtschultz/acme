@@ -89,12 +89,12 @@ def main(_):
             sl_network=_make_sl_network(environment_spec),
             replay_buffer_capacity=int(2e5),
             reservoir_buffer_capacity=int(2e6)))
-  agents[1] = RandomActor()
+  #agents[1] = RandomActor()
 
   # Run the environment loop.
   loop = open_spiel_environment_loop.OpenSpielEnvironmentLoop(
       environment, agents)
-  loop.run(num_episodes=10000000)  # pytype: disable=attribute-error
+  loop.run(num_episodes=20000000)  # pytype: disable=attribute-error
 
 
 if __name__ == '__main__':
