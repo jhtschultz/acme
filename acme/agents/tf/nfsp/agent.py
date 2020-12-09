@@ -54,7 +54,7 @@ class NFSP(agent.Agent):
       batch_size: int = 64,
       rl_learning_rate: float = 0.01,
       sl_learning_rate: float = 0.01,
-      anticipatory_param: float = 0.99,
+      anticipatory_param: float = 0.1,
       prefetch_size: int = 4,
       target_update_period: int = 300,
       samples_per_insert: float = 32.0,
@@ -136,7 +136,7 @@ class NFSP(agent.Agent):
     rl_policy_network = snt.Sequential(
         [rl_network, legal_actions.EpsilonGreedy(epsilon=0.1, threshold=-1e8)])
     # TODO
-    sl_policy_network = snt.Sequential([sl_network])
+    sl_policy_network = sl_network
 
     tf2_utils.create_variables(rl_network, [environment_spec.observations])
     tf2_utils.create_variables(sl_network, [environment_spec.observations])
@@ -190,7 +190,9 @@ class NFSP(agent.Agent):
         actor=actor,
         learner=learner,
         min_observations=max(batch_size, min_replay_size),
-        observations_per_step=observations_per_step)
+        observations_per_step=float(batch_size) / samples_per_insert)
+        # TODO
+        #observations_per_step=observations_per_step)
 
 
 

@@ -41,11 +41,12 @@ from open_spiel.python.algorithms import expected_game_score
 class NFSPPolicies(policy.Policy):
   """Joint policy to be evaluated."""
 
-  def __init__(self, env, nfsp_actors):
+  def __init__(self, env, nfsp_actors, mode):
     game = env.game
     player_ids = 2
     super(NFSPPolicies, self).__init__(game, player_ids)
     self._actors = nfsp_actors
+    self._mode = mode
 
   def action_probabilities(self, state, player_id=None):
     cur_player = state.current_player()
@@ -56,18 +57,27 @@ class NFSPPolicies(policy.Policy):
     player_observation = OLT(observation=np.asarray(state.information_state_tensor(cur_player), dtype=np.float32),
                              legal_actions=legals,
                              terminal=np.asarray([float(state.is_terminal())], dtype=np.float32))
+    if cur_player == 0:
+      if self._mode == "AVG":
+        p = self._actors[cur_player]._actor._get_avg_policy(player_observation).numpy()
+        p = np.squeeze(p)
+        #print("AVG POLICY: ", p)
+        
+      elif self._mode == "BR":
+        batched_observation = tf2_utils.add_batch_dim(player_observation)
+        action_values = np.squeeze(self._actors[cur_player]._learner._rl_learner._network(batched_observation))
+        p = np.zeros(self.game.num_distinct_actions(), dtype=np.float32)
+        p[np.argmax(action_values)] = 1
+      else:
+        raise ValueError("Invalid mode")
     # TODO hack
-    if cur_player == 1:
+    elif cur_player == 1:
       p = legals / len(legal_actions)
-
+      #print("RANDOM POLICY: ", p)
     else:
-      batched_observation = tf2_utils.add_batch_dim(player_observation)
-      action_values = np.squeeze(self._actors[cur_player]._learner._rl_learner._network(batched_observation))
-      p = np.zeros(self.game.num_distinct_actions(), dtype=np.float32)
-      p[np.argmax(action_values)] = 1
+      raise ValueError("Invalid player {}".format(cur_player))
 
-      #p = self._actors[cur_player]._actor._get_avg_policy(player_observation).numpy()
-      #p = np.squeeze(p)
+
     prob_dict = {action: p[action] for action in legal_actions}
     return prob_dict
 
@@ -113,7 +123,8 @@ class OpenSpielEnvironmentLoop(core.Worker):
     self._observed_first = [False] * len(self._actors)
     self._prev_actions = [None] * len(self._actors)
 
-    self._joint_avg_policy = NFSPPolicies(environment, actors)
+    # TODO
+    #self._joint_avg_policy = NFSPPolicies(environment, actors)
 
   def _send_observation(self, timestep: dm_env.TimeStep, player: int):
     # If terminal all actors must update
@@ -274,16 +285,21 @@ class OpenSpielEnvironmentLoop(core.Worker):
 
     episode_count, step_count = 0, 0
     while not should_terminate(episode_count, step_count):
-      if episode_count % 10000 == 0:
+      if episode_count % 1000 == 0:
         print("EPISODE COUNT: ", episode_count)
 
-        policies = NFSPPolicies(self._environment, self._actors)
-
+        policies = NFSPPolicies(self._environment, self._actors, "BR")
         policy_value = expected_game_score.policy_value(self._environment.game.new_initial_state(), [policies] * 2)
+        print("[{}] BR Value against Random {}".format(episode_count, policy_value))
+
+        policies = NFSPPolicies(self._environment, self._actors, "AVG")
+        policy_value = expected_game_score.policy_value(self._environment.game.new_initial_state(), [policies] * 2)
+        print("[{}] AVG Value against Random {}".format(episode_count, policy_value))
+
+
         #print(policy.UniformRandomPolicy(self._environment.game))
         #expl = exploitability.exploitability(self._environment.game, self._joint_avg_policy)
         #print("[{}] Exploitability AVG {}".format(episode_count, expl))
-        print("[{}] Value against Random {}".format(episode_count, policy_value))
         #print("RL REPLAY CLIENT INFO:")
         #for agent in self._actors:
         #    print(agent._rl_buffer_client.server_info())

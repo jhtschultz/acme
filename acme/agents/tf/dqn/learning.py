@@ -151,10 +151,10 @@ class DQNLearner(acme.Learner, tf2_savers.TFSaveable):
     self._optimizer.apply(gradients, self._network.trainable_variables)
 
     # Update the priorities in the replay buffer.
-    if self._replay_client:
-      priorities = tf.cast(tf.abs(extra.td_error), tf.float64)
-      self._replay_client.update_priorities(
-          table=adders.DEFAULT_PRIORITY_TABLE, keys=keys, priorities=priorities)
+    #if self._replay_client:
+    #  priorities = tf.cast(tf.abs(extra.td_error), tf.float64)
+    #  self._replay_client.update_priorities(
+    #      table=adders.DEFAULT_PRIORITY_TABLE, keys=keys, priorities=priorities)
 
     # Periodically update the target network.
     if tf.math.mod(self._num_steps, self._target_update_period) == 0:

@@ -98,7 +98,8 @@ class NFSPActor(core.Actor):
     batched_observation = tf2_utils.add_batch_dim(observation)
 
     # Compute the policy, conditioned on the observation.
-    policy = self._sl_network(batched_observation)
+    logits = self._sl_network(batched_observation)
+    policy =  tf.nn.softmax(logits)
 
     return policy
 
