@@ -17,71 +17,19 @@
 
 import operator
 import time
-from typing import List, Optional
+from typing import Optional, Sequence
 
 from acme import core
-# Internal imports.
 from acme.tf import utils as tf2_utils
 from acme.utils import counting
 from acme.utils import loggers
+from acme.wrappers import open_spiel_wrapper
 import dm_env
 from dm_env import specs
 import numpy as np
 import pyspiel
 import tensorflow as tf
 import tree
-
-from acme.wrappers.open_spiel_wrapper import OLT
-from open_spiel.python import policy
-from open_spiel.python import rl_environment
-from open_spiel.python.algorithms import exploitability
-from open_spiel.python.algorithms import expected_game_score
-
-
-class NFSPPolicies(policy.Policy):
-  """Joint policy to be evaluated."""
-
-  def __init__(self, env, nfsp_actors, mode):
-    game = env.game
-    player_ids = 2
-    super(NFSPPolicies, self).__init__(game, player_ids)
-    self._actors = nfsp_actors
-    self._mode = mode
-
-  def action_probabilities(self, state, player_id=None):
-    cur_player = state.current_player()
-    legal_actions = state.legal_actions(cur_player)
-
-    legals = np.zeros(self.game.num_distinct_actions(), dtype=np.float32)
-    legals[legal_actions] = 1
-    player_observation = OLT(observation=np.asarray(state.information_state_tensor(cur_player), dtype=np.float32),
-                             legal_actions=legals,
-                             terminal=np.asarray([float(state.is_terminal())], dtype=np.float32))
-    #if cur_player == 0:
-    if True:
-      if self._mode == "AVG":
-        p = self._actors[cur_player]._actor._get_avg_policy(player_observation).numpy()
-        p = np.squeeze(p)
-        #print("AVG POLICY: ", p)
-        
-      elif self._mode == "BR":
-        batched_observation = tf2_utils.add_batch_dim(player_observation)
-        action_values = np.squeeze(self._actors[cur_player]._learner._rl_learner._network(batched_observation))
-        p = np.zeros(self.game.num_distinct_actions(), dtype=np.float32)
-        p[np.argmax(action_values)] = 1
-      else:
-        raise ValueError("Invalid mode")
-    # TODO hack
-    elif cur_player == 1:
-      p = legals / len(legal_actions)
-      #print("RANDOM POLICY: ", p)
-    else:
-      raise ValueError("Invalid player {}".format(cur_player))
-
-
-    prob_dict = {action: p[action] for action in legal_actions}
-    return prob_dict
-
 
 
 class OpenSpielEnvironmentLoop(core.Worker):
@@ -106,8 +54,8 @@ class OpenSpielEnvironmentLoop(core.Worker):
 
   def __init__(
       self,
-      environment: dm_env.Environment,
-      actors: List[core.Actor],
+      environment: open_spiel_wrapper.OpenSpielWrapper,
+      actors: Sequence[core.Actor],
       counter: counting.Counter = None,
       logger: loggers.Logger = None,
       should_update: bool = True,
@@ -123,9 +71,6 @@ class OpenSpielEnvironmentLoop(core.Worker):
     # Track information necessary to coordinate updates among multiple actors.
     self._observed_first = [False] * len(self._actors)
     self._prev_actions = [None] * len(self._actors)
-
-    # TODO
-    #self._joint_avg_policy = NFSPPolicies(environment, actors)
 
   def _send_observation(self, timestep: dm_env.TimeStep, player: int):
     # If terminal all actors must update
@@ -172,12 +117,11 @@ class OpenSpielEnvironmentLoop(core.Worker):
 
   # TODO Remove? Currently used for debugging.
   def _print_policy(self, timestep: dm_env.TimeStep, player: int):
-    pass
-  #  batched_observation = tf2_utils.add_batch_dim(timestep.observation[player])
-  #  policy = tf.squeeze(
-  #      self._actors[player]._learner._network(batched_observation))
-  #  tf.print(policy, summarize=-1)
-  #  tf.print("Greedy action: ", tf.math.argmax(policy))
+    batched_observation = tf2_utils.add_batch_dim(timestep.observation[player])
+    policy = tf.squeeze(
+        self._actors[player]._learner._network(batched_observation))
+    tf.print("Policy: ", policy, summarize=-1)
+    tf.print("Greedy action: ", tf.math.argmax(policy))
 
   # TODO Remove verbose or add to logger?
   def run_episode(self, verbose: bool = False) -> loggers.LoggingData:
@@ -286,39 +230,15 @@ class OpenSpielEnvironmentLoop(core.Worker):
 
     episode_count, step_count = 0, 0
     while not should_terminate(episode_count, step_count):
-      if episode_count % 10000 == 0:
-        print("EPISODE COUNT: ", episode_count)
-
-#        policies = NFSPPolicies(self._environment, self._actors, "BR")
-#        policy_value = expected_game_score.policy_value(self._environment.game.new_initial_state(), [policies] * 2)
-#        print("[{}] BR Value against Random {}".format(episode_count, policy_value))
-#
-#        policies = NFSPPolicies(self._environment, self._actors, "AVG")
-#        policy_value = expected_game_score.policy_value(self._environment.game.new_initial_state(), [policies] * 2)
-#        print("[{}] AVG Value against Random {}".format(episode_count, policy_value))
-
-
-        #print(policy.UniformRandomPolicy(self._environment.game))
-        policies = NFSPPolicies(self._environment, self._actors, "AVG")
-        expl = exploitability.exploitability(self._environment.game, policies)
-        print("[{}] Exploitability AVG {}".format(episode_count, expl))
-        print("RL REPLAY CLIENT INFO:")
-        for agent in self._actors:
-            print(agent._rl_buffer_client.server_info())
-        print("SL REPLAY CLIENT INFO:")
-        for agent in self._actors:
-            print(agent._sl_buffer_client.server_info())
-        result = self.run_episode(verbose=False)
+      if episode_count % 1000 == 0:
+        result = self.run_episode(verbose=True)
       else:
         result = self.run_episode(verbose=False)
       episode_count += 1
       step_count += result['episode_length']
       # Log the given results.
-      #self._logger.write(result)
+      self._logger.write(result)
 
 
 def _generate_zeros_from_spec(spec: specs.Array) -> np.ndarray:
   return np.zeros(spec.shape, spec.dtype)
-
-
-# Internal class.

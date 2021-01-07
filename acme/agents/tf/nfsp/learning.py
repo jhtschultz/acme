@@ -42,6 +42,8 @@ class NFSPLearner(acme.Learner, tf2_savers.TFSaveable):
       self,
       rl_learner: acme.Learner,
       sl_learner: acme.Learner,
+      rl_buffer_client,  # TODO
+      sl_buffer_client,  # TODO
       counter: counting.Counter = None,
       logger: loggers.Logger = None,
       checkpoint: bool = True,
@@ -49,6 +51,9 @@ class NFSPLearner(acme.Learner, tf2_savers.TFSaveable):
 
     self._rl_learner = rl_learner
     self._sl_learner = sl_learner
+
+    self._rl_buffer_client = rl_buffer_client
+    self._sl_buffer_client = sl_buffer_client
 
     # Internalise, optimizer, and dataset.
     # TODO combine here?
@@ -74,8 +79,14 @@ class NFSPLearner(acme.Learner, tf2_savers.TFSaveable):
 
   def step(self):
     # Do a batch of SGD.
-    result = {'rl_loss': self._rl_learner._step()['loss'],
-              'sl_loss': self._sl_learner._step()['loss']}
+    # TODO
+    #result = {'rl_loss': self._rl_learner._step()['loss'],
+    #          'sl_loss': self._sl_learner._step()['loss']}
+    result = {}
+    if self._rl_buffer_client.server_info()['priority_table'][7] > 1000:
+      result['rl_loss'] = self._rl_learner._step()['loss']
+    if self._sl_buffer_client.server_info()['priority_table'][7] > 1000:
+      result['sl_loss'] = self._sl_learner._step()['loss']
 
     # Compute elapsed time.
     timestamp = time.time()

@@ -80,7 +80,7 @@ class DQNLearner(acme.Learner, tf2_savers.TFSaveable):
     self._iterator = iter(dataset)  # pytype: disable=wrong-arg-types
     self._network = network
     self._target_network = target_network
-    self._optimizer = snt.optimizers.Adam(learning_rate)
+    self._optimizer = snt.optimizers.SGD(learning_rate)  # TODO SGD vs Adam
     self._replay_client = replay_client
 
     # Internalise the hyperparameters.
@@ -131,8 +131,10 @@ class DQNLearner(acme.Learner, tf2_savers.TFSaveable):
       d_t = tf.cast(d_t, q_tm1.dtype) * tf.cast(self._discount, q_tm1.dtype)
 
       # Compute the loss.
-      loss, extra = trfl.double_qlearning(q_tm1, a_tm1, r_t, d_t, q_t_value,
-                                          q_t_selector)
+      # TODO
+      loss, extra = trfl.qlearning(q_tm1, a_tm1, r_t, d_t, q_t_value)
+      #loss, extra = trfl.double_qlearning(q_tm1, a_tm1, r_t, d_t, q_t_value,
+      #                                    q_t_selector)
       # TODO
       #loss = losses.huber(extra.td_error, self._huber_loss_parameter)
 

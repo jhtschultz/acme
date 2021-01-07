@@ -14,4 +14,5 @@
 
 """Specialized environment loops."""
 
+from acme.environment_loops.nfsp_environment_loop import NFSPEnvironmentLoop
 from acme.environment_loops.open_spiel_environment_loop import OpenSpielEnvironmentLoop

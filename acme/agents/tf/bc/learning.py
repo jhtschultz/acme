@@ -61,7 +61,7 @@ class BCLearner(acme.Learner, tf2_savers.TFSaveable):
     # TODO(b/155086959): Fix type stubs and remove.
 
     self._network = network
-    self._optimizer = snt.optimizers.Adam(learning_rate)
+    self._optimizer = snt.optimizers.SGD(learning_rate)  # TODO SGD vs Adam
 
     self._variables: List[List[tf.Tensor]] = [network.trainable_variables]
     self._num_steps = tf.Variable(0, dtype=tf.int32)
@@ -85,7 +85,7 @@ class BCLearner(acme.Learner, tf2_savers.TFSaveable):
     with tf.GradientTape() as tape:
       # Evaluate our networks.
       logits = self._network(o_tm1)
-      # TODO from logits?
+      # TODO make sure from_logits is handled correctly
       cce = tf.keras.losses.SparseCategoricalCrossentropy(from_logits=True)
       loss = cce(a_tm1, logits)
 

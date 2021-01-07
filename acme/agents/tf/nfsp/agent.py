@@ -50,16 +50,16 @@ class NFSP(agent.Agent):
       sl_network: snt.Module,
       replay_buffer_capacity: int,
       reservoir_buffer_capacity: int,
-      discount: float = 0.99,
-      batch_size: int = 64,
+      discount: float = 1.0,
+      batch_size: int = 128,
       rl_learning_rate: float = 0.01,
       sl_learning_rate: float = 0.01,
       anticipatory_param: float = 0.1,
       prefetch_size: int = 4,
       target_update_period: int = 300,
-      samples_per_insert: float = 32.0,
+      samples_per_insert: float = 32.0,  # TODO unused
       min_replay_size: int = 1000,
-      observations_per_step: int = 128,
+      observations_per_step: int = 64,
       importance_sampling_exponent: float = 0.2,  # TODO currently have this commented out in DQN learner
       priority_exponent: float = 0.0,
       n_step: int = 1,
@@ -73,7 +73,8 @@ class NFSP(agent.Agent):
     # TODO create second replay table
     rl_replay_table = reverb.Table(
         name=adders.DEFAULT_PRIORITY_TABLE,
-        sampler=reverb.selectors.Prioritized(priority_exponent),
+        sampler=reverb.selectors.Uniform(),
+        #sampler=reverb.selectors.Prioritized(priority_exponent),  # TODO
         remover=reverb.selectors.Fifo(),
         max_size=replay_buffer_capacity,
         rate_limiter=reverb.rate_limiters.MinSize(1),
@@ -130,9 +131,10 @@ class NFSP(agent.Agent):
         batch_size=batch_size,
         prefetch_size=prefetch_size)
 
+    # TODO
     # Use constant 0.05 epsilon greedy policy by default.
-    if epsilon is None:
-      epsilon = tf.Variable(0.05, trainable=False)
+    #if epsilon is None:
+    #  epsilon = tf.Variable(0.05, trainable=False)
     rl_policy_network = snt.Sequential(
         [rl_network, legal_actions.EpsilonGreedy(epsilon=0.1, threshold=-1e8)])
     # TODO
@@ -152,6 +154,7 @@ class NFSP(agent.Agent):
 
     # Create a target network.
     target_network = copy.deepcopy(rl_network)
+    tf2_utils.create_variables(target_network, [environment_spec.observations])
 
     # TODO import
     rl_learner = dqn_learning.DQNLearner(
@@ -174,7 +177,7 @@ class NFSP(agent.Agent):
         dataset=sl_dataset)
         #counter=learner_counter) TODO counter created by default?
 
-    learner = nfsp_learning.NFSPLearner(rl_learner, sl_learner)
+    learner = nfsp_learning.NFSPLearner(rl_learner, sl_learner, self._rl_buffer_client, self._sl_buffer_client)
 
     # TODO add back checkpoint
     #if checkpoint:
