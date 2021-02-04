@@ -1,3 +1,4 @@
+# python3
 # Copyright 2018 DeepMind Technologies Limited. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -12,11 +13,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Specialized environment loops."""
+"""Neural Fictitious Self-Play (NFSP) agent."""
 
-try:
-  # pylint: disable=g-import-not-at-top
-  from acme.environment_loops.open_spiel_environment_loop import OpenSpielEnvironmentLoop
-  from acme.environment_loops.nfsp_environment_loop import NFSPEnvironmentLoop
-except ImportError:
-  pass
+from acme.agents.tf.nfsp.acting import NFSPActor
+from acme.agents.tf.nfsp.agent import NFSP
+from acme.agents.tf.nfsp.learning import NFSPLearner
